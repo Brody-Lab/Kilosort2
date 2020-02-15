@@ -59,15 +59,10 @@ for j = 1:Nk
 
     rez.Ths(j) = Th; % store the threshold for potential debugging
     rez.st3(ix(vexp<=Th), 2) = 0; % any spikes below the threshold get discarded into a 0-th cluster.
+    rez.below_cutoff(ix(vexp<=Th)) =1;
 end
 
 % we sometimes get NaNs, why? replace with full contamination
 rez.est_contam_rate(isnan(rez.est_contam_rate)) = 1;
 
-% remove spikes assigned to the 0 cluster
-ix = rez.st3(:,2)==0;
-rez.st3(ix, :) = [];
-if ~isempty(rez.cProj)
-    rez.cProj(ix, :) = []; % remove their template projections too
-    rez.cProjPC(ix, :,:) = []; % and their PC projections
-end
+rez = recompute_clusters(rez);

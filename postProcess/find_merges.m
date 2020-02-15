@@ -48,6 +48,7 @@ for j = 1:Nk
                 i = ix(k);
                 % now merge j into i and move on
                 rez.st3(rez.st3(:,2)==isort(j),2) = i; % simply overwrite all the spikes of neuron j with i (i>j by construction)
+                rez.merged_from(rez.st3(:,2)==isort(j)) = isort(j);
                 nspk(i) = nspk(i) + nspk(isort(j)); % update number of spikes for cluster i
                 fprintf('merged %d into %d \n', isort(j), i)
                 % YOU REALLY SHOULD MAKE SURE THE PC CHANNELS MATCH HERE
@@ -68,3 +69,5 @@ if ~flag
     rez.R_CCG  = min(rez.R_CCG , rez.R_CCG'); % symmetrize the scores
     rez.Q_CCG  = min(rez.Q_CCG , rez.Q_CCG');
 end
+
+rez = recompute_clusters(rez);

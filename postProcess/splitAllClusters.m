@@ -6,14 +6,13 @@ function [rez, X] = splitAllClusters(rez, flag)
 % bimodality threshold, then the cluster is split along that direction
 % it only uses the PC features for each spike, stored in rez.cProjPC
 
-ops = rez.ops;
-wPCA = gather(ops.wPCA); % use PCA projections to reconstruct templates when we do splits
+wPCA = gather(rez.ops.wPCA); % use PCA projections to reconstruct templates when we do splits
 
 ccsplit = rez.ops.AUCsplit; % this is the threshold for splits, and is one of the main parameters users can change
 
-NchanNear   = min(ops.Nchan, 32);
-Nnearest    = min(ops.Nchan, 32);
-sigmaMask   = ops.sigmaMask;
+NchanNear   = min(rez.ops.Nchan, 32);
+Nnearest    = min(rez.ops.Nchan, 32);
+sigmaMask   = rez.ops.sigmaMask;
 
 ik = 0;
 Nfilt = size(rez.W,2);
@@ -21,9 +20,9 @@ nsplits= 0;
 
 [iC, mask, C2C] = getClosestChannels(rez, sigmaMask, NchanNear); % determine what channels each template lives on
 
-ops.nt0min = getOr(ops, 'nt0min', 20); % the waveforms must be aligned to this sample
+rez.ops.nt0min = getOr(rez.ops, 'nt0min', 20); % the waveforms must be aligned to this sample
 
-[~, iW] = max(abs(rez.dWU(ops.nt0min, :, :)), [], 2); % find the peak abs channel for each template
+[~, iW] = max(abs(rez.dWU(rez.ops.nt0min, :, :)), [], 2); % find the peak abs channel for each template
 iW = squeeze(int32(iW));
 
 isplit = 1:Nfilt; % keep track of original cluster for each cluster. starts with all clusters being their own origin.
@@ -44,7 +43,7 @@ while ik<Nfilt
        continue; % do not split if fewer than 300 spikes (we cannot estimate cross-correlograms accurately)
     end
 
-    ss = rez.st3(isp,1)/ops.fs; % convert to seconds
+    ss = rez.st3(isp,1)/rez.ops.fs; % convert to seconds
 
     clp0 = rez.cProjPC(isp, :, :); % get the PC projections for these spikes
     clp0 = gpuArray(clp0(:,:));
@@ -157,7 +156,8 @@ while ik<Nfilt
        iW(Nfilt) = iW(ik); % copy the best channel from the original template
        isplit(Nfilt) = isplit(ik); % copy the provenance index to keep track of splits
 
-       rez.st3(isp(ilow), 2)    = Nfilt; % overwrite spike indices with the new index
+       rez.split_from(isp(ilow)) = rez.st3(isp(ilow), 2);
+       rez.st3(isp(ilow), 2)    = Nfilt; % overwrite spike indices with the new index       
        rez.simScore(:, Nfilt)   = rez.simScore(:, ik); % copy similarity scores from the original
        rez.simScore(Nfilt, :)   = rez.simScore(ik, :); % copy similarity scores from the original
        rez.simScore(ik, Nfilt) = 1; % set the similarity with original to 1
@@ -177,27 +177,9 @@ end
 fprintf('Finished splitting. Found %d splits, checked %d/%d clusters, nccg %d \n', nsplits, ik, Nfilt, nccg)
 
 
-Nfilt = size(rez.W,2); % new number of templates
-Nrank = 3;
-Nchan = ops.Nchan;
-Params     = double([0 Nfilt 0 0 size(rez.W,1) Nnearest ...
-    Nrank 0 0 Nchan NchanNear ops.nt0min 0]); % make a new Params to pass on parameters to CUDA
+isplit = rez.simScore ==1;
 
-% we need to re-estimate the spatial profiles
-[Ka, Kb] = getKernels(ops, 10, 1); % we get the time upsampling kernels again
-[rez.W, rez.U, rez.mu] = mexSVDsmall2(Params, rez.dWU, rez.W, iC-1, iW-1, Ka, Kb); % we run SVD
-
-[WtW, iList] = getMeWtW(single(rez.W), single(rez.U), Nnearest); % we re-compute similarity scores between templates
-rez.iList = iList; % over-write the list of nearest templates
-
-isplit = rez.simScore==1; % overwrite the similarity scores of clusters with same parent
-rez.simScore = gather(max(WtW, [], 3));
-rez.simScore(isplit) = 1; % 1 means they come from the same parent
-
-rez.iNeigh   = gather(iList(:, 1:Nfilt)); % get the new neighbor templates
-rez.iNeighPC    = gather(iC(:, iW(1:Nfilt))); % get the new neighbor channels
-
-rez.Wphy = cat(1, zeros(1+ops.nt0min, Nfilt, Nrank), rez.W); % for Phy, we need to pad the spikes with zeros so the spikes are aligned to the center of the window
+rez = recompute_clusters(rez);
 
 rez.isplit = isplit; % keep track of origins for each cluster
 
