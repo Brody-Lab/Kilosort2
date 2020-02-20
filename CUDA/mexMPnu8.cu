@@ -289,7 +289,7 @@ __global__ void	cleanup_spikes(const double *Params, const float *data,
   
   while(tid0<NT-Nthreads-lockout+1){
       if (tid<2*lockout)
-          sdata[tid] = err[tid0 + tid];
+          sdata[tid] = err[tid0 + ts];
       sdata[tid+2*lockout] = err[2*lockout + tid0 + tid];
       
       __syncthreads();

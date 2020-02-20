@@ -20,9 +20,7 @@ iW = squeeze(int32(iW));
 [WtW, iList] = getMeWtW(single(rez.W), single(rez.U), Nnearest); % we re-compute similarity scores between templates
 rez.iList = iList; % over-write the list of nearest templates
 
-isplit = rez.simScore==1; % overwrite the similarity scores of clusters with same parent
 rez.simScore = gather(max(WtW, [], 3));
-rez.simScore(isplit) = 1; % 1 means they come from the same parent
 
 rez.iNeigh   = gather(iList(:, 1:Nfilt)); % get the new neighbor templates
 rez.iNeighPC    = gather(iC(:, iW(1:Nfilt))); % get the new neighbor channels

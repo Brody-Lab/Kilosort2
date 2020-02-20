@@ -17,10 +17,11 @@ function rez = remove_inactive_clusters(rez,varargin)
     
     spikes_to_remove = ismember(rez.st3(:,2),template_idx(remove_clusters));
     
-    rez.not_enough_spikes = template_idx(remove_clusters);
+    rez.inactive = template_idx(remove_clusters);
     
-    rez.st3(spikes_to_remove,2) = 0; 
-
+    rez = remove_spikes(rez,spikes_to_remove,'inactive');
     rez = recompute_clusters(rez);
+    
+    fprintf('Removed %g inactive clusters.\n',sum(remove_clusters));
 
 end

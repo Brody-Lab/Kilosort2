@@ -1,9 +1,12 @@
-function [K, Qi, Q00, Q01, Ri] = ccg(st1, st2, nbins, tbin)
+function [K, Qi, Q00, Q01, Ri, R_central] = ccg(st1, st2, nbins, tbin)
 % this function efficiently computes the crosscorrelogram between two sets
 % of spikes (st1, st2), with tbin length each, timelags =  plus/minus nbins
 % and then estimates how refractory the cross-correlogram is, which can be used
 % during merge decisions.
 
+if isempty(st1) || isempty(st2)
+    error('Lists of times cannot be empty.');
+end
 
 st1 = sort(st1(:)); % makes sure the spike trains are sorted in increasing order
 st2 = sort(st2(:));
@@ -82,5 +85,21 @@ for i = 1:10
 end
 
 K(nbins+1) = a; % restore the center value of the cross-correlogram
+
+%now test just central bin
+
+irange = nbins+1; % for this central range of the CCG
+n = sum(K(irange))/2;
+lam = R00 ;
+
+%    logp = log(lam) * n - lam - gammaln(n+1);
+
+% this is tricky: we approximate the Poisson likelihood with a gaussian of equal mean and variance
+% that allows us to integrate the probability that we would see <N spikes in the center of the
+% cross-correlogram from a distribution with mean R00*i spikes
+p = 1/2 * (1+ erf((n - lam)/sqrt(2*lam)));
+R_central = p; % keep track of p for each bin size i
+
+
 Qin = Qi/Q00; % normalize the normalized refractory index in two different ways
 Qin1 = Qi/Q01;

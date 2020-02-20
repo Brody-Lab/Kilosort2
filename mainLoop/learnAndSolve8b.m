@@ -6,9 +6,10 @@ if ~isfield(rez, 'W') || isempty(rez.W)
     Nbatches = numel(rez.iorig);
     ihalf = ceil(Nbatches/2); % more robust to start the tracking in the middle of the re-ordered batches
     
-    % we learn the templates by going back and forth through some of the data,
+    % we learn the templates by going back and forth through the whole
+    % dataset twice, 
     % in the order specified by iorig (determined by batch reordering).
-    iorder0 = rez.iorig([ihalf:-1:1 1:ihalf]); % these are absolute batch ids
+    iorder0 = rez.iorig([ihalf:Nbatches Nbatches-1:-1:ihalf]); % these are absolute batch ids
     rez     = learnTemplates(rez, iorder0);
     
     rez.istart  = rez.iorig(ihalf); % this is the absolute batch id where we start sorting

@@ -54,9 +54,9 @@ W = rez.W;
 
 Nfilt = size(W,2);
 
-templates = zeros(Nchan, nt0, Nfilt, 'single');
+templates = zeros(rez.ops.Nchan, size(rez.W,1), size(rez.W,2), 'single');
 for iNN = 1:size(templates,3)
-   templates(:,:,iNN) = squeeze(U(:,iNN,:)) * squeeze(W(:,iNN,:))';
+   templates(:,:,iNN) = squeeze(rez.U(:,iNN,:)) * squeeze(rez.W(:,iNN,:))';
 end
 templates = permute(templates, [3 2 1]); % now it's nTemplates x nSamples x nChannels
 templatesInds = repmat([0:size(templates,3)-1], size(templates,1), 1); % we include all channels so this is trivial
@@ -172,9 +172,9 @@ if ~isempty(savePath)
     if ~exist(fullfile(savePath,'params.py'),'file')
         fid = fopen(fullfile(savePath,'params.py'), 'w');
 
-        [~, fname, ext] = fileparts(rez.ops.fbinary);
+        %[~, fname, ext] = fileparts(rez.ops.fbinary);
 
-        fprintf(fid,['dat_path = ''',fname ext '''\n']);
+        fprintf(fid,['dat_path = ''',rez.ops.fbinary '''\n']);
         fprintf(fid,'n_channels_dat = %i\n',rez.ops.NchanTOT);
         fprintf(fid,'dtype = ''int16''\n');
         fprintf(fid,'offset = 0\n');

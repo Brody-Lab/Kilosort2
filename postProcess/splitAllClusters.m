@@ -28,11 +28,15 @@ iW = squeeze(int32(iW));
 isplit = 1:Nfilt; % keep track of original cluster for each cluster. starts with all clusters being their own origin.
 dt = 1/1000;
 nccg = 0;
+ncorr=0;
+split_crit=0;
 
 while ik<Nfilt
-    if rem(ik, 100)==1
+    if rem(ik, 100)==0
       % periodically write updates
-       fprintf('Found %d splits, checked %d/%d clusters, nccg %d \n', nsplits, ik, Nfilt, nccg)
+      if ik>0
+        fprintf('Found %d splits, checked %d/%d clusters, nccg %d \n', nsplits, ik, Nfilt, nccg)
+      end
     end
     ik = ik+1;
 
@@ -106,6 +110,7 @@ while ik<Nfilt
             x = gather(clp * w);  % the new projections of the data onto this direction
         end
     end
+   
 
     ilow = rs(:,1)>rs(:,2); % these spikes are assigned to cluster 1
 %     ps = mean(rs(:,1));
@@ -113,15 +118,13 @@ while ik<Nfilt
     phigh = mean(rs(~ilow,2)); % same for cluster 2
     nremove = min(mean(ilow), mean(~ilow)); % the smallest cluster has this proportion of all spikes
 
-
-    % did this split fix the autocorrelograms?
-    [K, Qi, Q00, Q01, rir] = ccg(ss(ilow), ss(~ilow), 500, dt); % compute the cross-correlogram between spikes in the putative new clusters
-    Q12 = min(Qi/max(Q00, Q01)); % refractoriness metric 1
-    R = min(rir); % refractoriness metric 2
-
-    % if the CCG has a dip, don't do the split.
-    % These thresholds are consistent with the ones from merges.
-    if Q12<.25 && R<.05 % if both metrics are below threshold.
+    if sum(ilow)<50 || sum(~ilow)<50
+        continue
+    end
+    % if the cross-correlogram of the split is as or more refractory than the
+    % parent cluster, abort
+    ccg_data = test_ccgs(ss(ilow),ss(~ilow),500,dt,{'merge','xc'});
+    if ccg_data.merge.Q>=ccg_data.xc.Q || ccg_data.merge.Rmin>=ccg_data.xc.Rmin % if both metrics are below threshold.
         nccg = nccg+1; % keep track of how many splits were voided by the CCG criterion
         continue;
     end
@@ -129,21 +132,25 @@ while ik<Nfilt
     % now decide if the split would result in waveforms that are too similar
     c1  = wPCA * reshape(mean(clp0(ilow,:),1), 3, []); %  the reconstructed mean waveforms for putatiev cluster 1
     c2  = wPCA * reshape(mean(clp0(~ilow,:),1), 3, []); %  the reconstructed mean waveforms for putative cluster 2
-    cc = corrcoef(c1, c2); % correlation of mean waveforms
-    n1 =sqrt(sum(c1(:).^2)); % the amplitude estimate 1
-    n2 =sqrt(sum(c2(:).^2)); % the amplitude estimate 2
-
-    r0 = 2*abs(n1 - n2)/(n1 + n2); % similarity of amplitudes
-
-    % if the templates are correlated, and their amplitudes are similar, stop the split!!!
-    if cc(1,2)>.9 && r0<.2
+    max_lag = round(5e-4 * rez.ops.fs); % up to 0.5ms
+    [simscore,amp_score,bestlag] = calculate_simscore(gather(cat(3,c1,c2)),max_lag);
+    cc = simscore(2);
+    % abort if the mean waveforms are highly correlated.
+    if cc>.9 && abs(amp_score(2))<0.2
+        ncorr = ncorr+1;
         continue;
     end
+    
+    if min(plow,phigh)<0.95
+        [dip, p_value]=HartigansDipSignifTest(x,500);
+    end
+    
+    %time_separated_stat = abs(CalcCP(rez.st3(isp(ilow),1),rez.st3(isp(~ilow),1))-0.5);
 
     % finaly criteria to continue with the split: if the split piece is more than 5% of all spikes,
     % if the split piece is more than 300 spikes, and if the confidences for assigning spikes to
     % both clusters exceeds a preset criterion ccsplit
-    if nremove > .05 && min(plow,phigh)>ccsplit && min(sum(ilow), sum(~ilow))>300
+    if  min(plow,phigh)>0.95 || p_value<0.05  % when there are low numbers of spikes or one cluster has many more events than the other, hartigan's dip p_value seems overly conservative and the gaussian mixture model gives a more sensible answe
        % one cluster stays, one goes
        Nfilt = Nfilt + 1;
 
@@ -156,9 +163,8 @@ while ik<Nfilt
        iW(Nfilt) = iW(ik); % copy the best channel from the original template
        isplit(Nfilt) = isplit(ik); % copy the provenance index to keep track of splits
 
-       rez.split_from(isp(ilow)) = rez.st3(isp(ilow), 2);
        rez.st3(isp(ilow), 2)    = Nfilt; % overwrite spike indices with the new index       
-       rez.simScore(:, Nfilt)   = rez.simScore(:, ik); % copy similarity scores from the original
+       rez.simScore(:, Nfilt)   = rez.simScore(:, ik); % copy similarity scores from the original <--- this is temporary. they get recalculated by recompute_clusters.
        rez.simScore(Nfilt, :)   = rez.simScore(ik, :); % copy similarity scores from the original
        rez.simScore(ik, Nfilt) = 1; % set the similarity with original to 1
        rez.simScore(Nfilt, ik) = 1; % set the similarity with original to 1
@@ -170,11 +176,12 @@ while ik<Nfilt
        ik = ik-1; % the cluster piece that stays at this index needs to be tested for splits again before proceeding
        % the piece that became a new cluster will be tested again when we get to the end of the list
        nsplits = nsplits + 1; % keep track of how many splits we did
-
+    else
+        split_crit = split_crit+1;
     end
 end
 
-fprintf('Finished splitting. Found %d splits, checked %d/%d clusters, nccg %d \n', nsplits, ik, Nfilt, nccg)
+fprintf('Finished splitting. Found %d splits, checked %d/%d clusters, rejected because ccg dip %d, because correlated %d, because not well split %d \n', nsplits, ik, Nfilt, nccg, ncorr, split_crit)
 
 
 isplit = rez.simScore ==1;

@@ -34,6 +34,13 @@ amax = max(ipair, [], 2);
 % if this score is 1, then all the criteria have bene met for dropping this template
 idrop= amax>0;
 
+% HERE IS THE PLACE WHERE DROPPING TEMPLATES WHO ONLY SERVE TO EXPLAIN
+% RESIDUAL VARIANCE OF OTHER SPIKES COULD BE INSERTED
+
+% but to know this, you'd need to have all the times across the whole
+% recording for calculating ccgs which right now isn't available to this
+% function.
+
 % remove these templates everywhere like before
 W(:,idrop,:) = [];
 U(:,idrop,:) = [];
