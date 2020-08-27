@@ -49,7 +49,4 @@ function rez = remove_spikes(rez,remove_idx,label,varargin)
     end
     rez.st3 = rez.st3(~remove_idx,:);
     rez.st2 = rez.st2(~remove_idx,:);
-    
-    rez = recompute_clusters(rez);
-
 end
