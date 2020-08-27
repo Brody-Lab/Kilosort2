@@ -171,10 +171,7 @@ if ~isempty(savePath)
      %make params file
     if ~exist(fullfile(savePath,'params.py'),'file')
         fid = fopen(fullfile(savePath,'params.py'), 'w');
-
-        %[~, fname, ext] = fileparts(rez.ops.fbinary);
-
-        fprintf(fid,['dat_path = ''',rez.ops.fbinary '''\n']);
+        fprintf(fid,['dat_path = ''',strrep(rez.ops.fbinary,'\','\\') '''\n']); % fixes file separators being interpreted as special characters
         fprintf(fid,'n_channels_dat = %i\n',rez.ops.NchanTOT);
         fprintf(fid,'dtype = ''int16''\n');
         fprintf(fid,'offset = 0\n');
